@@ -8,13 +8,14 @@ class Pangenome(object):
 
        clusters = defaultdict(nx.Graph)
 
-    def add_to_cluster(self, cluster: str, gene1: str, gene2: str,
+    def add_to_cluster(self, cluster: str, gene1: GeneNode, gene2: GeneNode,
                        distance: float):
 
-        self.clusters[cluster].add_edge(gene1, gene2, weight=distance)
+        self.clusters[cluster].add_edge(gene1.gene, gene2.gene,
+                                        weight=distance)
 
     def join_clusters(self, cluster1: str, cluster2: str,
-                      gene1: str, gene2: str, middle_gene: str,
+                      gene1: Seq, gene2: Seq, middle_gene: str,
                       distance1: float, distance2: float):
 
         G = self.clusters.pop(cluster2)
@@ -29,4 +30,12 @@ class Pangenome(object):
         updated when centre changes.
         """
 
-        self.clusters[gene].add_node(gene)
+        self.clusters[gene].add_node(gene.id, sequence=gene.seq)
+
+class GeneNode(object):
+
+    def __init__(self, genome, gene, sequence):
+
+        genome = genome
+        gene = gene
+        sequence = sequence
