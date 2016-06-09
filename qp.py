@@ -17,7 +17,7 @@ def arguments():
     return parser.parse_args()
 
 def calculate_distance(seq1, seq2):
-
+    # parameters are sequences
     pass
 
 def annotations(annot_dir):
@@ -36,7 +36,7 @@ def annotations(annot_dir):
 
 def add_to_graph(gene, pangenome, threshold):
 
-    d = partial(calculate_distance, seq1=gene)
+    d = partial(calculate_distance, seq1=gene.sequence)
     for cluster in pangenome.clusters:
         closest = min(nx.center(cluster), key=d)
 

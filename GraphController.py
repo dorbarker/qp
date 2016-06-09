@@ -1,6 +1,7 @@
+from collections import defaultdict
+from qp import calculate_distance as d
 import networkx as nx
 import numpy as np
-from collections import defaultdict
 
 class Pangenome(object):
 
@@ -32,6 +33,32 @@ class Pangenome(object):
 
         self.clusters[gene].add_node(gene.id, sequence=gene.seq)
 
+    def find_closest(self, cluster, gene, entry_point, done=None):
+
+        done = done or []
+        possible_nexts = {}
+        d = partial(calculate_distance, gene1=gene.sequence)
+
+        neighbours = set(nx.all_neighbors(cluster, entry_point)) - set(done)
+
+        if len(neighbours) is not 0:
+            for node in neighbours:
+                if node not in done:
+
+                    dist = d(gene.sequence, node.sequence)
+
+                    gene.compared[node] = dist
+                    node.compared[gene] = dist
+
+                    possible_nexts[node] = dist
+
+                best = min(possible_nexts,
+                           key=lambda x: possible_nexts[x].compared)
+                find_closest(cluster, gene, best, done)
+
+        else:
+            self.add_to_cluster(cluster, gene, node, d(node.sequence))
+
 class GeneNode(object):
 
     def __init__(self, genome, gene, sequence):
@@ -39,3 +66,4 @@ class GeneNode(object):
         genome = genome
         gene = gene
         sequence = sequence
+        compared = {}
