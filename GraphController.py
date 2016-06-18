@@ -13,8 +13,7 @@ class Pangenome(object):
     def add_to_cluster(self, cluster: str, gene1: 'GeneNode', gene2: 'GeneNode',
                        distance: float):
 
-        self.clusters[cluster].add_edge(gene1.gene, gene2.gene,
-                                        weight=distance)
+        self.clusters[cluster].add_edge(gene1, gene2, weight=distance)
 
     def join_clusters(self, cluster1: str, cluster2: str,
                       gene1: 'Seq', gene2: 'Seq', middle_gene: str,

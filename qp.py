@@ -25,7 +25,7 @@ def annotations(ffn):
 
     with open(ffn) as f:
         for rec in SeqIO.parse(f, 'fasta'):
-            print('here')
+
             yield GC.GeneNode(genome_basename(ffn),
                               rec.id, rec.seq)
 
@@ -34,8 +34,8 @@ def add_to_graph(gene, pangenome, threshold):
     d = partial(utilities.calculate_distance, gene2=gene)
     if pangenome.clusters:
         for cluster in pangenome.clusters.values():
-            closest = min(nx.center(cluster), key=d)
 
+            closest = min(nx.center(cluster), key=d)
             gene.update_compared(closest)
 
             if gene.compared[closest] < threshold:
@@ -43,6 +43,9 @@ def add_to_graph(gene, pangenome, threshold):
                 break # need to change later to make cluster joining work
         else:
             pangenome.add_founder(gene)
+
+        print(gene, gene.compared)  # diag
+
     else:
         pangenome.add_founder(gene)
 
@@ -54,9 +57,21 @@ def main():
 
     for i in args.input:
         for a in annotations(i):
-            print(a.gene)
-            add_to_graph(a, pangenome, 0.5)
-            print(len(pangenome.clusters))
-            print(pangenome.clusters.keys())
+
+
+            try:
+                add_to_graph(a, pangenome, 0.5)
+            except AttributeError:
+
+                print('\n', pangenome.clusters)
+                print(pangenome.clusters['NCTC11168_00001'].nodes())
+
+                #from matplotlib import pyplot as plt
+                #nx.draw(pangenome.clusters["NCTC11168_00001"])
+                #plt.show()
+
+                print(a)
+                print(type(a), dir(a))
+                quit()
 if __name__ == '__main__':
     main()
