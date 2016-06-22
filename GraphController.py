@@ -31,7 +31,7 @@ class Pangenome(object):
         updated when centre changes.
         """
 
-        self.clusters[gene].add_node(gene, sequence=gene.sequence)
+        self.clusters[gene].add_node(gene)
 
     def find_closest(self, cluster, gene, entry_point, done=None):
 
@@ -49,23 +49,26 @@ class Pangenome(object):
             for node in neighbours:
                 if node in done:
                     continue
-                dist = d(gene.sequence, node.sequence)
+                #dist = d(gene.sequence, node.sequence)
+                #dist = d(gene2=node.sequence)
+                #gene.compared[node] = dist
+                #node.compared[gene] = dist
 
-                gene.compared[node] = dist
-                node.compared[gene] = dist
+                gene.update_compared(node)
 
-                possible_nexts[node] = dist
+                possible_nexts[node] = gene.compared[node]
 
                 done.append(node)
 
-            if entry_point.compared[gene] < best_next(possible_nexts):
+            best = best_next(possible_nexts)
+
+            if entry_point.compared[gene] < possible_nexts[best]:
 
                 self.add_to_cluster(cluster, gene, entry_point,
                                     entry_point.compared[gene])
 
             else:
-
-                find_closest(cluster, gene, best, done)
+                self.find_closest(cluster, gene, best, done)
 
         else:
             self.add_to_cluster(cluster, gene, entry_point,

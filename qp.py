@@ -30,12 +30,15 @@ def annotations(ffn):
                               rec.id, rec.seq)
 
 def add_to_graph(gene, pangenome, threshold):
-
+    print(gene)
     d = partial(utilities.calculate_distance, gene2=gene)
     if pangenome.clusters:
         for cluster in pangenome.clusters.values():
-
-            closest = min(nx.center(cluster), key=d)
+            try:
+                closest = min(nx.center(cluster), key=d)
+            except:
+                print("EXCEPTION ON", cluster)
+                quit()
             gene.update_compared(closest)
 
             if gene.compared[closest] < threshold:
@@ -66,12 +69,6 @@ def main():
                 print('\n', pangenome.clusters)
                 print(pangenome.clusters['NCTC11168_00001'].nodes())
 
-                #from matplotlib import pyplot as plt
-                #nx.draw(pangenome.clusters["NCTC11168_00001"])
-                #plt.show()
-
                 print(a)
-                print(type(a), dir(a))
-                quit()
 if __name__ == '__main__':
     main()
