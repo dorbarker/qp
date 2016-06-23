@@ -49,10 +49,6 @@ class Pangenome(object):
             for node in neighbours:
                 if node in done:
                     continue
-                #dist = d(gene.sequence, node.sequence)
-                #dist = d(gene2=node.sequence)
-                #gene.compared[node] = dist
-                #node.compared[gene] = dist
 
                 gene.update_compared(node)
 
@@ -85,10 +81,18 @@ class GeneNode(object):
 
     def update_compared(self, other):
 
-        dist = utilities.calculate_distance(self, other)
+        if other not in self.compared:
 
-        self.compared[other] = dist
-        other.compared[self] = dist
+            dist = utilities.calculate_distance(self, other)
+
+            self.compared[other] = dist
+            other.compared[self] = dist
+
+            return dist
+
+        else:
+
+            return self.compared[other]
 
     def __repr__(self):
         return self.gene

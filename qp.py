@@ -9,6 +9,7 @@ import GraphController as GC
 import networkx as nx
 import utilities
 
+import matplotlib.pyplot as plt
 def arguments():
 
     parser = argparse.ArgumentParser()
@@ -30,24 +31,17 @@ def annotations(ffn):
                               rec.id, rec.seq)
 
 def add_to_graph(gene, pangenome, threshold):
-    print(gene)
-    d = partial(utilities.calculate_distance, gene2=gene)
+
     if pangenome.clusters:
         for cluster in pangenome.clusters.values():
-            try:
-                closest = min(nx.center(cluster), key=d)
-            except:
-                print("EXCEPTION ON", cluster)
-                quit()
-            gene.update_compared(closest)
+
+            closest = min(nx.center(cluster), key=gene.update_compared)
 
             if gene.compared[closest] < threshold:
                 pangenome.find_closest(cluster, gene, closest)
                 break # need to change later to make cluster joining work
         else:
             pangenome.add_founder(gene)
-
-        print(gene, gene.compared)  # diag
 
     else:
         pangenome.add_founder(gene)
@@ -57,18 +51,25 @@ def main():
     args = arguments()
 
     pangenome = GC.Pangenome()
-
+    counter = 1
     for i in args.input:
         for a in annotations(i):
 
+            add_to_graph(a, pangenome, 0.1)
 
-            try:
-                add_to_graph(a, pangenome, 0.5)
-            except AttributeError:
+            G = nx.Graph()
+            for c in pangenome.clusters.values():
 
-                print('\n', pangenome.clusters)
-                print(pangenome.clusters['NCTC11168_00001'].nodes())
+                if len(c) is 1:
+                    G.add_nodes_from(c.nodes())
+                else:
 
-                print(a)
+                    G.add_edges_from(c.edges())
+
+            nx.draw(G, nx.random_layout(G), with_labels=True)
+            plt.savefig('{}.png'.format(counter))
+            plt.close()
+
+            counter += 1
 if __name__ == '__main__':
     main()
