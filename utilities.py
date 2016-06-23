@@ -1,5 +1,6 @@
 import subprocess
 from multiprocessing import cpu_count
+import collections
 
 def calculate_distance(gene1, gene2):
 
@@ -20,3 +21,5 @@ def calculate_distance(gene1, gene2):
                                  universal_newlines=True)
 
     return hamming(*filter(lambda x: '>' not in x, aln.split()))
+
+Cluster_Entry = collections.namedtuple('Cluster_Entry', ('cluster', 'entry'))

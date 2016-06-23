@@ -10,10 +10,11 @@ class Pangenome(object):
 
        self.clusters = defaultdict(nx.Graph)
 
-    def add_to_cluster(self, cluster: str, gene1: 'GeneNode', gene2: 'GeneNode',
-                       distance: float):
+    def add_to_cluster(self, cluster: str,
+                       gene1: 'GeneNode', gene2: 'GeneNode'):
 
-        self.clusters[cluster].add_edge(gene1, gene2, weight=distance)
+        self.clusters[cluster].add_edge(gene1, gene2,
+                                        weight=gene1.compared[gene2])
 
     def join_clusters(self, cluster1: str, cluster2: str,
                       gene1: 'Seq', gene2: 'Seq', middle_gene: str,
@@ -41,34 +42,28 @@ class Pangenome(object):
 
         done = done or [entry_point]
         possible_nexts = {}
-        d = partial(utilities.calculate_distance, gene1=gene.sequence)
 
         neighbours = set(nx.all_neighbors(cluster, entry_point)) - set(done)
 
-        if len(neighbours):
-            for node in neighbours:
-                if node in done:
-                    continue
+        for n in (node for node in neighbours if node not in done):
 
-                gene.update_compared(node)
+            gene.update_compared(n)
 
-                possible_nexts[node] = gene.compared[node]
+            possible_nexts[n] = gene.compared[n]
 
-                done.append(node)
+            done.append(n)
 
-            best = best_next(possible_nexts)
+        best = best_next(possible_nexts) if possible_nexts else entry_point
 
-            if entry_point.compared[gene] < possible_nexts[best]:
+        if not len(neighbours) or entry_point.compared[gene] < possible_nexts[best]:
 
-                self.add_to_cluster(cluster, gene, entry_point,
-                                    entry_point.compared[gene])
-
-            else:
-                self.find_closest(cluster, gene, best, done)
+            closest = entry_point
 
         else:
-            self.add_to_cluster(cluster, gene, entry_point,
-                                entry_point.compared[gene])
+
+            closest = self.find_closest(cluster, gene, best, done)
+
+        return closest
 
 class GeneNode(object):
 
