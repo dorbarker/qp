@@ -8,6 +8,7 @@ import GraphController as GC
 import networkx as nx
 import utilities
 import matplotlib.pyplot as plt
+from concurrent.futures import ThreadPoolExecutor
 
 def arguments():
 
@@ -42,21 +43,29 @@ def add_to_graph(gene, pangenome, threshold):
 
             recursive_cluster_join(c1, clusters)
 
+    def find_matching_clusters(cluster):
+
+        centre = min(nx.center(pangenome.clusters[cluster]),
+                     key=gene.update_compared)
+
+        if gene.compared[centre] < threshold:
+
+            cluster_entry = utilities.Cluster_Entry(cluster, centre)
+
+            out = cluster_entry
+
+        else:
+            out = None
+
+        return out
+
     if pangenome.clusters:
 
-        matching_clusters = []
+        with ThreadPoolExecutor(15) as executor:
+            matches = executor.map(find_matching_clusters,
+                                   pangenome.clusters)
 
-        for cluster in pangenome.clusters:
-
-            centre = min(nx.center(pangenome.clusters[cluster]),
-                         key=gene.update_compared)
-
-            if gene.compared[centre] < threshold:
-
-                cluster_entry = utilities.Cluster_Entry(cluster, centre)
-
-                matching_clusters.append(cluster_entry)
-
+        matching_clusters = list(filter(None, matches))
         # found a new cluster
         if not matching_clusters:
             pangenome.add_founder(gene)
