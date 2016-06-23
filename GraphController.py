@@ -16,14 +16,28 @@ class Pangenome(object):
         self.clusters[cluster].add_edge(gene1, gene2,
                                         weight=gene1.compared[gene2])
 
-    def join_clusters(self, cluster1: str, cluster2: str,
-                      gene1: 'Seq', gene2: 'Seq', middle_gene: str,
-                      distance1: float, distance2: float):
+    def import_nodes(self, cluster1, cluster2):
 
-        G = self.clusters.pop(cluster2)
-        self.clusters[cluster1].add_edges_from(self.clusters[cluster2].edges())
-        self.add_to_cluster(cluster1, gene1, middle_gene, distance1)
-        self.add_to_cluster(cluster1, middle_gene, gene2, distance2)
+        if len(self.clusters[cluster2]) is 1:
+
+            self.clusters[cluster1].add_nodes_from(self.clusters[cluster2])
+
+        else:
+
+            self.clusters[cluster1].add_edges_from(self.clusters[cluster2])
+
+        del self.clusters[cluster2]
+
+    def join_clusters(self, cluster1: str, cluster2: str, gene: 'GeneNode'):
+
+
+        c1_closest = self.find_closest(cluster1.cluster, gene, cluster1.entry)
+        c2_closest = self.find_closest(cluster2.cluster, gene, cluster2.entry)
+
+        self.import_nodes(cluster1.cluster, cluster2.cluster)
+
+        self.add_to_cluster(cluster1.cluster, gene, c1_closest)
+        self.add_to_cluster(cluster1.cluster, gene, c2_closest)
 
     def add_founder(self, gene):
         """Creates the founding node of a new cluster graph.
@@ -43,9 +57,9 @@ class Pangenome(object):
         done = done or [entry_point]
         possible_nexts = {}
 
-        neighbours = set(nx.all_neighbors(cluster, entry_point)) - set(done)
+        neighbours = set(nx.all_neighbors(self.clusters[cluster], entry_point)) - set(done)
 
-        for n in (node for node in neighbours if node not in done):
+        for n in neighbours:
 
             gene.update_compared(n)
 

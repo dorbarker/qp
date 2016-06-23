@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 from Bio import SeqIO
-from functools import partial
 import argparse
 import json
 import os
@@ -32,13 +31,25 @@ def annotations(ffn):
 
 def add_to_graph(gene, pangenome, threshold):
 
+
+    def recursive_cluster_join(c1, clusters):
+
+        if clusters:
+
+            c2, *clusters  = clusters
+
+            pangenome.join_clusters(c1, c2, gene)
+
+            recursive_cluster_join(c1, clusters)
+
     if pangenome.clusters:
 
         matching_clusters = []
 
-        for cluster in pangenome.clusters.values():
+        for cluster in pangenome.clusters:
 
-            centre = min(nx.center(cluster), key=gene.update_compared)
+            centre = min(nx.center(pangenome.clusters[cluster]),
+                         key=gene.update_compared)
 
             if gene.compared[centre] < threshold:
 
@@ -46,19 +57,23 @@ def add_to_graph(gene, pangenome, threshold):
 
                 matching_clusters.append(cluster_entry)
 
+        # found a new cluster
         if not matching_clusters:
             pangenome.add_founder(gene)
 
+        # add to existing cluster
         elif len(matching_clusters) is 1:
 
             clust, entry = matching_clusters[0]
             closest = pangenome.find_closest(clust, gene, entry)
             pangenome.add_to_cluster(clust, gene, closest)
 
+        # merge two or more clusters
         else:
-            pass
-            #pangenome.add_to_cluster(
 
+            c1, *matching_clusters = matching_clusters
+
+            recursive_cluster_join(c1, matching_clusters)
 
     else:
         pangenome.add_founder(gene)
