@@ -9,15 +9,22 @@ import networkx as nx
 import utilities
 import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor
+from multiprocessing import cpu_count
 
 def arguments():
 
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('-i', '--input', nargs='+')
+    parser.add_argument('-i', '--input', nargs='+', dest='infile',
+                        help='Paths to one or more FASTA files')
+
+    parser.add_argument('-t', '--threshold', type=float, default=0.15,
+                        help='Maximum distance for cluster inclusion [0.15]')
+
+    parser.add_argument('-p', '--cpus', type=int, default=cpu_count(),
+                        help='Number of processor threads to use [all]')
 
     return parser.parse_args()
-
 
 def annotations(ffn):
 
@@ -30,7 +37,7 @@ def annotations(ffn):
             yield GC.GeneNode(genome_basename(ffn),
                               rec.id, rec.seq)
 
-def add_to_graph(gene, pangenome, threshold):
+def add_to_graph(gene, pangenome, threshold, cpus):
 
 
     def recursive_cluster_join(c1, clusters):
@@ -61,7 +68,7 @@ def add_to_graph(gene, pangenome, threshold):
 
     if pangenome.clusters:
 
-        with ThreadPoolExecutor(15) as executor:
+        with ThreadPoolExecutor(cpus) as executor:
             matches = executor.map(find_matching_clusters,
                                    pangenome.clusters)
 
@@ -96,7 +103,7 @@ def main():
     for i in args.input:
         for a in annotations(i):
 
-            add_to_graph(a, pangenome, 0.1)
+            add_to_graph(a, pangenome, args.threshold, args.cpus)
 
             G = nx.Graph()
             for c in pangenome.clusters.values():
