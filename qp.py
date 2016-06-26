@@ -81,7 +81,7 @@ def add_to_graph(gene, pangenome, threshold, cpus):
         elif len(matching_clusters) is 1:
 
             clust, entry = matching_clusters[0]
-            closest = pangenome.find_closest(clust, gene, entry)
+            closest = pangenome.find_closest(clust, gene, entry, cpus)
             pangenome.add_to_cluster(clust, gene, closest)
 
         # merge two or more clusters
@@ -100,7 +100,7 @@ def main():
 
     pangenome = GC.Pangenome()
     counter = 1
-    for i in args.input:
+    for i in args.infile:
         for a in annotations(i):
 
             add_to_graph(a, pangenome, args.threshold, args.cpus)

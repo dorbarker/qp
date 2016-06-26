@@ -1,8 +1,10 @@
 from collections import defaultdict
 from functools import partial
+from multiprocessing import cpu_count
 import networkx as nx
 import numpy as np
 import utilities
+from concurrent.futures import ThreadPoolExecutor
 
 class Pangenome(object):
 
@@ -48,28 +50,40 @@ class Pangenome(object):
 
         self.clusters[gene].add_node(gene)
 
-    def find_closest(self, cluster, gene, entry_point, done=None):
+    def find_closest(self, cluster, gene, entry_point, cpus, done=None):
 
         def best_next(nexts):
+            try:
+                return min(nexts, key=lambda x: nexts[x])[0]
 
-            return min(nexts, key=lambda x: nexts[x])
+            except ValueError:
+                return entry_point
 
-        done = done or [entry_point]
-        possible_nexts = {}
+        def explore_neighbours(node, cpus):
 
-        neighbours = set(nx.all_neighbors(self.clusters[cluster], entry_point)) - set(done)
+            gene.update_compared(node, cpus)
 
-        for n in neighbours:
+            return node, gene.compared[node]
 
-            gene.update_compared(n)
 
-            possible_nexts[n] = gene.compared[n]
+        done = done or set([entry_point])
 
-            done.append(n)
+        all_neighbours = nx.all_neighbors(self.clusters[cluster], entry_point)
+        neighbours =  set(all_neighbours) - set(done)
+        n_neighbours = len(neighbours)
 
-        best = best_next(possible_nexts) if possible_nexts else entry_point
+        threads = utilities.calculate_search_threads(n_neighbours, cpus)
 
-        if not len(neighbours) or entry_point.compared[gene] < possible_nexts[best]:
+        with ThreadPoolExecutor(threads) as executor:
+
+            f = partial(explore_neighbours, cpus=threads)
+            search = executor.map(f, neighbours)
+
+        done = done | neighbours
+        best = best_next(search)
+
+        if not len(neighbours) or \
+           entry_point.compared[gene] < possible_nexts[best]:
 
             closest = entry_point
 
@@ -88,11 +102,11 @@ class GeneNode(object):
         self.sequence = sequence
         self.compared = {}
 
-    def update_compared(self, other):
+    def update_compared(self, other, cpus=cpu_count()):
 
         if other not in self.compared:
 
-            dist = utilities.calculate_distance(self, other)
+            dist = utilities.calculate_distance(self, other, cpus)
 
             self.compared[other] = dist
             other.compared[self] = dist
