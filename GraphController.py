@@ -54,17 +54,19 @@ class Pangenome(object):
 
         def best_next(nexts):
             try:
-                return min(nexts, key=lambda x: nexts[x])[0]
+                return min(nexts, key=lambda x: nexts[1])
 
             except ValueError:
-                return entry_point
+                return entry_point, gene.compared[entry_point]
+
+            except IndexError:
+                return entry_point, gene.compared[entry_point]
 
         def explore_neighbours(node, cpus):
 
             gene.update_compared(node, cpus)
 
             return node, gene.compared[node]
-
 
         done = done or set([entry_point])
 
@@ -74,22 +76,22 @@ class Pangenome(object):
 
         threads = utilities.calculate_search_threads(n_neighbours, cpus)
 
-        with ThreadPoolExecutor(threads) as executor:
+        with ThreadPoolExecutor(min(n_neighbours, cpus)) as executor:
 
             f = partial(explore_neighbours, cpus=threads)
-            search = executor.map(f, neighbours)
+            search = list(executor.map(f, neighbours))
 
         done = done | neighbours
         best = best_next(search)
 
         if not len(neighbours) or \
-           entry_point.compared[gene] < possible_nexts[best]:
+           entry_point.compared[gene] < best[1]:
 
             closest = entry_point
 
         else:
 
-            closest = self.find_closest(cluster, gene, best, done)
+            closest = self.find_closest(cluster, gene, best[0], cpus, done)
 
         return closest
 
