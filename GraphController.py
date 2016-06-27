@@ -50,7 +50,7 @@ class Pangenome(object):
 
         self.clusters[gene].add_node(gene)
 
-    def find_closest(self, cluster, gene, entry_point, cpus, done=None):
+    def find_closest(self, cluster, gene, entry_point, prog, cpus, done=None):
 
         def best_next(nexts):
             try:
@@ -64,7 +64,7 @@ class Pangenome(object):
 
         def explore_neighbours(node, cpus):
 
-            gene.update_compared(node, cpus)
+            gene.update_compared(node, prog, cpus)
 
             return node, gene.compared[node]
 
@@ -91,7 +91,8 @@ class Pangenome(object):
 
         else:
 
-            closest = self.find_closest(cluster, gene, best[0], cpus, done)
+            closest = self.find_closest(cluster, gene, best[0],
+                                        prog, cpus, done)
 
         return closest
 
@@ -104,11 +105,11 @@ class GeneNode(object):
         self.sequence = sequence
         self.compared = {}
 
-    def update_compared(self, other, cpus=cpu_count()):
+    def update_compared(self, other, prog, cpus=cpu_count()):
 
         if other not in self.compared:
 
-            dist = utilities.calculate_distance(self, other, cpus)
+            dist = utilities.calculate_distance(self, other, prog, cpus)
 
             self.compared[other] = dist
             other.compared[self] = dist

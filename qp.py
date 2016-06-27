@@ -10,6 +10,7 @@ import utilities
 import matplotlib.pyplot as plt
 from concurrent.futures import ThreadPoolExecutor
 from multiprocessing import cpu_count
+from functools import partial
 
 def arguments():
 
@@ -24,6 +25,10 @@ def arguments():
     parser.add_argument('-p', '--cpus', type=int, default=cpu_count(),
                         help='Number of processor threads to use [all]')
 
+    parser.add_argument('--aln-program', default='mafft',
+                        choices=('mafft', 'clustalo'),
+                        help='Alignment program [mafft]')
+
     return parser.parse_args()
 
 def annotations(ffn):
@@ -37,7 +42,7 @@ def annotations(ffn):
             yield GC.GeneNode(genome_basename(ffn),
                               rec.id, rec.seq)
 
-def add_to_graph(gene, pangenome, threshold, cpus):
+def add_to_graph(gene, pangenome, threshold, prog, cpus):
 
 
     def recursive_cluster_join(c1, clusters):
@@ -53,7 +58,7 @@ def add_to_graph(gene, pangenome, threshold, cpus):
     def find_matching_clusters(cluster):
 
         centre = min(nx.center(pangenome.clusters[cluster]),
-                     key=gene.update_compared)
+                     key=partial(gene.update_compared, prog=prog, cpus=1))
 
         if gene.compared[centre] < threshold:
 
@@ -81,7 +86,7 @@ def add_to_graph(gene, pangenome, threshold, cpus):
         elif len(matching_clusters) is 1:
 
             clust, entry = matching_clusters[0]
-            closest = pangenome.find_closest(clust, gene, entry, cpus)
+            closest = pangenome.find_closest(clust, gene, entry, prog, cpus)
             pangenome.add_to_cluster(clust, gene, closest)
 
         # merge two or more clusters
@@ -99,25 +104,25 @@ def main():
     args = arguments()
 
     pangenome = GC.Pangenome()
-    counter = 1
+
     for i in args.infile:
         for a in annotations(i):
 
-            add_to_graph(a, pangenome, args.threshold, args.cpus)
+            add_to_graph(a, pangenome, args.threshold,
+                         args.aln_program, args.cpus)
 
-            G = nx.Graph()
-            for c in pangenome.clusters.values():
+    G = nx.Graph()
+    for c in pangenome.clusters.values():
 
-                if len(c) is 1:
-                    G.add_nodes_from(c.nodes())
-                else:
+        if len(c) is 1:
+            G.add_nodes_from(c.nodes())
+        else:
 
-                    G.add_edges_from(c.edges())
+            G.add_edges_from(c.edges())
 
-            nx.draw(G, nx.spring_layout(G), with_labels=True)
-            plt.savefig('{}.png'.format(counter))
-            plt.close()
+    nx.draw(G, nx.spring_layout(G), with_labels=True)
+    plt.savefig('test_data.png')
+    plt.close()
 
-            counter += 1
 if __name__ == '__main__':
     main()
