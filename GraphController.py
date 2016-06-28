@@ -24,21 +24,27 @@ class Pangenome(object):
 
     def import_nodes(self, cluster1, cluster2):
 
+        c2 = self.clusters[cluster2]
+
         if len(self.clusters[cluster2]) is 1:
 
-            self.clusters[cluster1].add_nodes_from(self.clusters[cluster2])
+            self.clusters[cluster1].add_nodes_from(c2.nodes())
 
         else:
 
-            self.clusters[cluster1].add_edges_from(self.clusters[cluster2])
+            self.clusters[cluster1].add_edges_from(c2.edges())
 
         del self.clusters[cluster2]
 
-    def join_clusters(self, cluster1: str, cluster2: str, gene: 'GeneNode'):
+    def join_clusters(self, cluster1: str, cluster2: str, gene: 'GeneNode',
+                            prog, cpus):
 
 
-        c1_closest = self.find_closest(cluster1.cluster, gene, cluster1.entry)
-        c2_closest = self.find_closest(cluster2.cluster, gene, cluster2.entry)
+        c1_closest = self.find_closest(cluster1.cluster, gene, cluster1.entry,
+                                       prog, cpus)
+
+        c2_closest = self.find_closest(cluster2.cluster, gene, cluster2.entry,
+                                       prog, cpus)
 
         self.import_nodes(cluster1.cluster, cluster2.cluster)
 
@@ -92,7 +98,7 @@ class Pangenome(object):
         best = best_next(search)
 
         if not len(neighbours) or \
-           entry_point.compared[gene] < best[1]:
+           entry_point.update_compared(gene, prog, cpus) < best[1]:
 
             closest = entry_point
 

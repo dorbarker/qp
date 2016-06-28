@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 from Bio import SeqIO
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 from multiprocessing import cpu_count
 import GraphController as GC
@@ -49,15 +50,20 @@ def add_to_graph(gene, pangenome, threshold, prog, cpus):
 
             c2, *clusters  = clusters
 
-            pangenome.join_clusters(c1, c2, gene)
+            pangenome.join_clusters(c1, c2, gene, prog, cpus)
 
             recursive_cluster_join(c1, clusters)
 
     if pangenome.clusters:
 
-        matching_clusters = utilities.cluster_match(pangenome, gene,
-                                                    threshold, cpus)
+        with ThreadPoolExecutor(cpus) as executor:
 
+            f = partial(utilities.cluster_match,
+                        gene=gene, threshold=threshold)
+
+            matches = executor.map(f, pangenome.clusters.items())
+
+        matching_clusters = list(filter(None, matches))
         # found a new cluster
         if not matching_clusters:
             pangenome.add_founder(gene)

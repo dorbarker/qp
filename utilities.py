@@ -3,6 +3,7 @@ import collections
 from Bio import SeqIO
 import os
 import networkx as nx
+import tempfile
 
 Cluster_Entry = collections.namedtuple('Cluster_Entry', ('cluster', 'entry'))
 
@@ -50,46 +51,28 @@ def calculate_search_threads(n_neighbours, cpus):
 
     return out
 
-def cluster_match(pangenome, gene, threshold, cpus):
+def cluster_match(clustername_cluster, gene, threshold):
 
-    def determine_cluster_entry(cluster_keys, genes, match):
+    clustername, cluster = clustername_cluster
+    centre = nx.center(cluster)[0]  # centre node of the cluster
 
-        cluster = cluster_keys[genes.index(match)]
-        return Cluster_Entry(cluster, pangenome.gene_lookup[match])
+    fasta = format_input(gene.sequence, centre.sequence)
 
-    if not os.access('/tmp/qptemp/', os.F_OK):
-        os.mkdir('/tmp/qptemp/')
+    with tempfile.NamedTemporaryFile(mode='r+') as i:
+        
+        i.write(fasta)
 
-    temp_in = '/tmp/qptemp/{}.fasta'.format(gene.gene)
-    temp_out = '/tmp/qptemp/{}_out.fasta'.format(gene.gene)
+        with tempfile.NamedTemporaryFile(mode='r+') as o:
+            i.seek(0)
+            cdhit = ('cdhit',
+                     '-i', i.name,
+                     '-o', o.name,
+                     '-c', str(1.0 - threshold))
 
-    cdhit = ('cdhit',
-             '-i', temp_in,
-             '-o', temp_out,
-             '-c', str(1.0 - threshold),
-             '-T', str(cpus))
+            subprocess.call(cdhit, stdout=subprocess.DEVNULL)
 
-    clusts = list(pangenome.clusters.keys())
-    centres = [nx.center(c)[0] for c in pangenome.clusters.values()]
-    genes = [g.gene for g in centres]
-    fastas = ('>{}\n{}'.format(x.gene, x.sequence) for x in centres)
+            data = str(o.read()).split()
 
-    fasta = '>{}\n{}\n'.format(gene.gene, gene.sequence) + '\n'.join(fastas)
+    if len([x for x in data if '>' in x]) is 1:
 
-    with open(temp_in, 'w') as o:
-        o.write(fasta)
-
-    subprocess.check_call(cdhit, stdout=subprocess.DEVNULL)
-
-    with open(temp_out, 'r') as f:
-        d = SeqIO.to_dict(SeqIO.parse(f, 'fasta'))
-
-    similar = set(genes) - set(d.keys())
-
-    matches = [determine_cluster_entry(clusts, genes, x) for x in similar]
-
-    # tidy up temp directory
-    for i in (temp_in, temp_out, temp_out + '.clstr'):
-        os.remove(i)
-
-    return matches
+        return Cluster_Entry(clustername, centre)
