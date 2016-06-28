@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
 
 from Bio import SeqIO
+from functools import partial
+from multiprocessing import cpu_count
+import GraphController as GC
 import argparse
 import json
-import os
-import GraphController as GC
-import networkx as nx
-import utilities
 import matplotlib.pyplot as plt
-from concurrent.futures import ThreadPoolExecutor
-from multiprocessing import cpu_count
-from functools import partial
+import networkx as nx
+import os
+import utilities
 
 def arguments():
 
@@ -44,7 +43,6 @@ def annotations(ffn):
 
 def add_to_graph(gene, pangenome, threshold, prog, cpus):
 
-
     def recursive_cluster_join(c1, clusters):
 
         if clusters:
@@ -55,29 +53,11 @@ def add_to_graph(gene, pangenome, threshold, prog, cpus):
 
             recursive_cluster_join(c1, clusters)
 
-    def find_matching_clusters(cluster):
-
-        centre = min(nx.center(pangenome.clusters[cluster]),
-                     key=partial(gene.update_compared, prog=prog, cpus=1))
-
-        if gene.compared[centre] < threshold:
-
-            cluster_entry = utilities.Cluster_Entry(cluster, centre)
-
-            out = cluster_entry
-
-        else:
-            out = None
-
-        return out
-
     if pangenome.clusters:
 
-        with ThreadPoolExecutor(cpus) as executor:
-            matches = executor.map(find_matching_clusters,
-                                   pangenome.clusters)
+        matching_clusters = utilities.cluster_match(pangenome, gene,
+                                                    threshold, cpus)
 
-        matching_clusters = list(filter(None, matches))
         # found a new cluster
         if not matching_clusters:
             pangenome.add_founder(gene)

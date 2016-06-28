@@ -10,13 +10,17 @@ class Pangenome(object):
 
     def __init__(self):
 
-       self.clusters = defaultdict(nx.Graph)
+        self.clusters = defaultdict(nx.Graph)
+        self.gene_lookup = {}
 
     def add_to_cluster(self, cluster: str,
                        gene1: 'GeneNode', gene2: 'GeneNode'):
 
         self.clusters[cluster].add_edge(gene1, gene2,
                                         weight=gene1.compared[gene2])
+
+        self.gene_lookup[gene1.gene] = gene1
+        self.gene_lookup[gene2.gene] = gene2
 
     def import_nodes(self, cluster1, cluster2):
 
@@ -49,6 +53,7 @@ class Pangenome(object):
         """
 
         self.clusters[gene].add_node(gene)
+        self.gene_lookup[gene.gene] = gene
 
     def find_closest(self, cluster, gene, entry_point, prog, cpus, done=None):
 
@@ -57,10 +62,12 @@ class Pangenome(object):
                 return min(nexts, key=lambda x: nexts[1])
 
             except ValueError:
-                return entry_point, gene.compared[entry_point]
+                return entry_point, gene.update_compared(entry_point,
+                                                         prog, cpus)
 
             except IndexError:
-                return entry_point, gene.compared[entry_point]
+                return entry_point, gene.update_compared(entry_point,
+                                                         prog, cpus)
 
         def explore_neighbours(node, cpus):
 
