@@ -51,28 +51,69 @@ def calculate_search_threads(n_neighbours, cpus):
 
     return out
 
-def cluster_match(clustername_cluster, gene, threshold):
+class ClusterMatch(object):
 
-    clustername, cluster = clustername_cluster
-    centre = nx.center(cluster)[0]  # centre node of the cluster
+    def __init__(self, clusters, genome):
 
-    fasta = format_input(gene.sequence, centre.sequence)
+        self.clusters = clusters
+        self.genome = genome  # list of GeneNode objects 
+        self.fasta = self.assemble_multifasta()
 
-    with tempfile.NamedTemporaryFile(mode='r+') as i:
+    def assemble_multifasta(self):
         
-        i.write(fasta)
+        def fasta(gene):
+            return '>{}\n{}'.format(gene.gene, gene.sequence)
 
-        with tempfile.NamedTemporaryFile(mode='r+') as o:
-            i.seek(0)
-            cdhit = ('cdhit',
-                     '-i', i.name,
-                     '-o', o.name,
-                     '-c', str(1.0 - threshold))
+        incoming = '\n'.join(fasta(g) for g in self.genome)
+        return '\n'.join((incoming, self.get_representatives()))
 
-            subprocess.call(cdhit, stdout=subprocess.DEVNULL)
+    def cluster(self, threshold, cpus):
 
-            data = str(o.read()).split()
+        with tempfile.TemporaryDirectory() as d:
 
-    if len([x for x in data if '>' in x]) is 1:
+            fasta_path = os.path.join(d.name, 'clusters.fasta')
+            out_path = os.path.join(d.name, 'clusters.out')
 
-        return Cluster_Entry(clustername, centre)
+            cdhit = ('cd-hit', '-i', fasta_path, '-o', out_path,
+                     '-c', str(1.0 - threshold), '-T', str(cpus),
+                     '-M', '0', '-d', '0')
+
+            with open(fasta_path, 'w') as f:
+                f.write(self.fasta)
+
+            subprocess.check_call(cdhit)
+
+            return self.parse_clusters(out_path + '.clstr')
+
+    def get_representatives(self):
+
+       return ((k, nx.center(v)[0].sequence) for k, v in self.clusters.items())
+
+    def parse_clusters(self, path):
+
+        def get_clust_entry(gene):
+            Cluster_Entry(gene, nx.center(self.clusters[gene])[0])
+
+        pt = re.compile('>.*\.\.\.')
+
+        matching_clusters = collections.defaultdict(list)
+
+        with open(path) as f:
+            data = f.read().split('>Cluster')
+
+        # get membership for each cluster
+        clusts = ([x.strip('>.') for x in re.findall(pt, y)] for y in data if y)
+
+        for c in clusts:
+
+            # genes from the incoming genome
+            incoming = [gene for gene in c if gene not in self.clusters]
+
+            # representative genes from the pangenome clusters
+            reps = [get_clust_entry(g) for gene in c if g in self.clusters]
+
+            # pair incoming genes with matching pangenome clusters
+            for g in incoming:
+                matching_clusters[g] = already_clustered
+
+        return matching_clusters
