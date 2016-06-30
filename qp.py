@@ -31,18 +31,25 @@ def arguments():
 
     return parser.parse_args()
 
-def annotations(ffn):
+def annotations(ffn, pangenome):
 
     def genome_basename(n):
         return os.path.splitext(os.path.basename(n))[0]
 
     with open(ffn) as f:
         for rec in SeqIO.parse(f, 'fasta'):
-
+            if rec.id in pangenome.gene_lookup:
+                continue
             yield GC.GeneNode(genome_basename(ffn),
                               rec.id, rec.seq)
 
-def add_to_graph(gene, pangenome, threshold, prog, cpus):
+def cluster_incoming_genome(pangenome, annotations, threshold, cpus):
+
+        incoming_genome =  utilities.ClusterMatch(pangenome.clusters, annotations)
+
+        return incoming_genome.cluster(threshold, cpus)
+
+def add_to_graph(gene, pangenome, matches, threshold, prog, cpus):
 
     def recursive_cluster_join(c1, clusters):
 
@@ -56,46 +63,53 @@ def add_to_graph(gene, pangenome, threshold, prog, cpus):
 
     if pangenome.clusters:
 
-        with ThreadPoolExecutor(cpus) as executor:
-
-            f = partial(utilities.cluster_match,
-                        gene=gene, threshold=threshold)
-
-            matches = executor.map(f, pangenome.clusters.items())
-
-        matching_clusters = list(filter(None, matches))
         # found a new cluster
-        if not matching_clusters:
+        if not matches:
             pangenome.add_founder(gene)
 
         # add to existing cluster
-        elif len(matching_clusters) is 1:
+        elif len(matches) is 1:
 
-            clust, entry = matching_clusters[0]
+            clust, entry = matches[0]
             closest = pangenome.find_closest(clust, gene, entry, prog, cpus)
             pangenome.add_to_cluster(clust, gene, closest)
 
         # merge two or more clusters
         else:
 
-            c1, *matching_clusters = matching_clusters
+            c1, *matching_clusters = matches
 
-            recursive_cluster_join(c1, matching_clusters)
+            recursive_cluster_join(c1, matches)
 
     else:
         pangenome.add_founder(gene)
 
 def main():
-
+    import time
     args = arguments()
 
     pangenome = GC.Pangenome()
 
-    for i in args.infile:
-        for a in annotations(i):
+    genomes = 1
 
-            add_to_graph(a, pangenome, args.threshold,
+    ref = time.time()
+    for i in args.infile:
+        annots = list(annotations(i, pangenome))
+
+        matching_clusters = cluster_incoming_genome(pangenome, annots,
+                                                    args.threshold, args.cpus)
+
+        for a in annots:
+
+
+            add_to_graph(a, pangenome, matching_clusters[a.gene], args.threshold,
                          args.aln_program, args.cpus)
+        now = time.time()
+
+        print(now-ref)
+        ref = now
+        print(len(pangenome.clusters.keys()))
+        genomes += 1
 
     G = nx.Graph()
     for c in pangenome.clusters.values():

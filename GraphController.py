@@ -12,6 +12,7 @@ class Pangenome(object):
 
         self.clusters = defaultdict(nx.Graph)
         self.gene_lookup = {}
+        self.collapsed_clusters = {}
 
     def add_to_cluster(self, cluster: str,
                        gene1: 'GeneNode', gene2: 'GeneNode'):
@@ -34,22 +35,37 @@ class Pangenome(object):
 
             self.clusters[cluster1].add_edges_from(c2.edges())
 
+        self.collapsed_clusters[cluster2] = cluster1
         del self.clusters[cluster2]
 
     def join_clusters(self, cluster1: str, cluster2: str, gene: 'GeneNode',
                             prog, cpus):
 
+        def point_to_new_cluster(clust):
 
-        c1_closest = self.find_closest(cluster1.cluster, gene, cluster1.entry,
-                                       prog, cpus)
+            try:
 
-        c2_closest = self.find_closest(cluster2.cluster, gene, cluster2.entry,
-                                       prog, cpus)
+                sub = self.collapsed_clusters[clust.cluster]
+                return utilities.Cluster_Entry(sub, nx.center(self.clusters[sub])[0])
+            except KeyError:
+                return clust
 
-        self.import_nodes(cluster1.cluster, cluster2.cluster)
+        if cluster1.cluster in self.clusters and cluster2.cluster in self.clusters:
+            c1_closest = self.find_closest(cluster1.cluster, gene, cluster1.entry,
+                                           prog, cpus)
 
-        self.add_to_cluster(cluster1.cluster, gene, c1_closest)
-        self.add_to_cluster(cluster1.cluster, gene, c2_closest)
+            c2_closest = self.find_closest(cluster2.cluster, gene, cluster2.entry,
+                                           prog, cpus)
+
+            self.import_nodes(cluster1.cluster, cluster2.cluster)
+
+            self.add_to_cluster(cluster1.cluster, gene, c1_closest)
+            self.add_to_cluster(cluster1.cluster, gene, c2_closest)
+
+        else:
+
+            self.join_clusters(point_to_new_cluster(cluster1),
+                               point_to_new_cluster(cluster2), gene, prog, cpus)
 
     def add_founder(self, gene):
         """Creates the founding node of a new cluster graph.
@@ -58,7 +74,7 @@ class Pangenome(object):
         updated when centre changes.
         """
 
-        self.clusters[gene].add_node(gene)
+        self.clusters[gene.gene].add_node(gene)
         self.gene_lookup[gene.gene] = gene
 
     def find_closest(self, cluster, gene, entry_point, prog, cpus, done=None):
@@ -134,4 +150,4 @@ class GeneNode(object):
             return self.compared[other]
 
     def __repr__(self):
-        return self.gene
+        return 'X' + self.gene

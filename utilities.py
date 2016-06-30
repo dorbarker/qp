@@ -4,6 +4,7 @@ from Bio import SeqIO
 import os
 import networkx as nx
 import tempfile
+import re
 
 Cluster_Entry = collections.namedtuple('Cluster_Entry', ('cluster', 'entry'))
 
@@ -56,23 +57,29 @@ class ClusterMatch(object):
     def __init__(self, clusters, genome):
 
         self.clusters = clusters
-        self.genome = genome  # list of GeneNode objects 
+        self.genome = genome  # list of GeneNode objects
         self.fasta = self.assemble_multifasta()
 
     def assemble_multifasta(self):
-        
-        def fasta(gene):
-            return '>{}\n{}'.format(gene.gene, gene.sequence)
 
-        incoming = '\n'.join(fasta(g) for g in self.genome)
-        return '\n'.join((incoming, self.get_representatives()))
+        def multifasta(genes):
+            return '\n'.join(fasta(g) for g in genes)
+
+        def fasta(gene):
+            try:
+                header_seq = (gene.gene, gene.sequence)
+            except AttributeError:
+                header_seq = gene
+            return '>{}\n{}'.format(*header_seq)
+
+        return '\n'.join((multifasta(self.genome), multifasta(self.get_representatives())))
 
     def cluster(self, threshold, cpus):
 
         with tempfile.TemporaryDirectory() as d:
 
-            fasta_path = os.path.join(d.name, 'clusters.fasta')
-            out_path = os.path.join(d.name, 'clusters.out')
+            fasta_path = os.path.join(d, 'clusters.fasta')
+            out_path = os.path.join(d, 'clusters.out')
 
             cdhit = ('cd-hit', '-i', fasta_path, '-o', out_path,
                      '-c', str(1.0 - threshold), '-T', str(cpus),
@@ -81,7 +88,7 @@ class ClusterMatch(object):
             with open(fasta_path, 'w') as f:
                 f.write(self.fasta)
 
-            subprocess.check_call(cdhit)
+            subprocess.check_call(cdhit, stdout=subprocess.DEVNULL)
 
             return self.parse_clusters(out_path + '.clstr')
 
@@ -92,7 +99,8 @@ class ClusterMatch(object):
     def parse_clusters(self, path):
 
         def get_clust_entry(gene):
-            Cluster_Entry(gene, nx.center(self.clusters[gene])[0])
+
+            return Cluster_Entry(gene, nx.center(self.clusters[gene])[0])
 
         pt = re.compile('>.*\.\.\.')
 
@@ -102,7 +110,7 @@ class ClusterMatch(object):
             data = f.read().split('>Cluster')
 
         # get membership for each cluster
-        clusts = ([x.strip('>.') for x in re.findall(pt, y)] for y in data if y)
+        clusts = [[x.strip('>.') for x in re.findall(pt, y)] for y in data if y]
 
         for c in clusts:
 
@@ -110,10 +118,10 @@ class ClusterMatch(object):
             incoming = [gene for gene in c if gene not in self.clusters]
 
             # representative genes from the pangenome clusters
-            reps = [get_clust_entry(g) for gene in c if g in self.clusters]
+            reps = [get_clust_entry(g) for g in c if g in self.clusters]
 
             # pair incoming genes with matching pangenome clusters
             for g in incoming:
-                matching_clusters[g] = already_clustered
+                matching_clusters[g] = reps
 
         return matching_clusters
