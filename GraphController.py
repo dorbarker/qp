@@ -17,8 +17,10 @@ class Pangenome(object):
     def add_to_cluster(self, cluster: str,
                        gene1: 'GeneNode', gene2: 'GeneNode'):
 
-        self.clusters[cluster].add_edge(gene1, gene2,
-                                        weight=gene1.compared[gene2])
+        #print('Adding', gene1, 'to', gene2, 'in cluster', cluster)
+        if gene1 != gene2:
+            self.clusters[cluster].add_edge(gene1, gene2,
+                                            weight=gene1.compare(gene2))
 
         self.gene_lookup[gene1.gene] = gene1
         self.gene_lookup[gene2.gene] = gene2
@@ -27,7 +29,7 @@ class Pangenome(object):
 
         c2 = self.clusters[cluster2]
 
-        if len(self.clusters[cluster2]) is 1:
+        if cluster2 in self.clusters and len(self.clusters[cluster2]) is 1:
 
             self.clusters[cluster1].add_nodes_from(c2.nodes())
 
@@ -51,6 +53,7 @@ class Pangenome(object):
                 return clust
 
         if cluster1.cluster in self.clusters and cluster2.cluster in self.clusters:
+
             c1_closest = self.find_closest(cluster1.cluster, gene, cluster1.entry,
                                            prog, cpus)
 
@@ -84,20 +87,19 @@ class Pangenome(object):
                 return min(nexts, key=lambda x: nexts[1])
 
             except ValueError:
-                return entry_point, gene.update_compared(entry_point,
-                                                         prog, cpus)
+                return entry_point, gene.compare(entry_point, prog, cpus)
 
             except IndexError:
-                return entry_point, gene.update_compared(entry_point,
-                                                         prog, cpus)
+                return entry_point, gene.compare(entry_point, prog, cpus)
 
         def explore_neighbours(node, cpus):
 
-            gene.update_compared(node, prog, cpus)
-
-            return node, gene.compared[node]
+            return node, gene.compare(node, prog, cpus)
 
         done = done or set([entry_point])
+
+        #if entry_point not in self.clusters[cluster]:
+        #    print(cluster, entry_point, self.clusters[cluster].edges())
 
         all_neighbours = nx.all_neighbors(self.clusters[cluster], entry_point)
         neighbours =  set(all_neighbours) - set(done)
@@ -114,7 +116,7 @@ class Pangenome(object):
         best = best_next(search)
 
         if not len(neighbours) or \
-           entry_point.update_compared(gene, prog, cpus) < best[1]:
+            entry_point.compare(gene, prog, cpus) < best[1]:
 
             closest = entry_point
 
@@ -122,6 +124,9 @@ class Pangenome(object):
 
             closest = self.find_closest(cluster, gene, best[0],
                                         prog, cpus, done)
+
+        if closest == gene:
+            print('closest is gene', gene, self.clusters[cluster].edges())
 
         return closest
 
@@ -134,7 +139,7 @@ class GeneNode(object):
         self.sequence = sequence
         self.compared = {}
 
-    def update_compared(self, other, prog, cpus=cpu_count()):
+    def compare(self, other, prog='mafft', cpus=1):
 
         if other not in self.compared:
 

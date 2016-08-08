@@ -54,25 +54,29 @@ def calculate_search_threads(n_neighbours, cpus):
 
 class ClusterMatch(object):
 
-    def __init__(self, clusters, genome):
+    def __init__(self, pangenome, genome):
 
-        self.clusters = clusters
-        self.genome = genome  # list of GeneNode objects
+        self.clusters = pangenome.clusters
+        self.genes = pangenome.gene_lookup
+        self.genome = genome  # dict of GeneNode objects
         self.fasta = self.assemble_multifasta()
 
     def assemble_multifasta(self):
 
         def multifasta(genes):
-            return '\n'.join(fasta(g) for g in genes)
+            return '\n'.join(fasta(g) for g in genes.values())
 
         def fasta(gene):
             try:
                 header_seq = (gene.gene, gene.sequence)
             except AttributeError:
+
                 header_seq = gene
             return '>{}\n{}'.format(*header_seq)
 
-        return '\n'.join((multifasta(self.genome), multifasta(self.get_representatives())))
+        bob = '\n'.join((multifasta(self.genome), multifasta(self.get_representatives())))
+        #print(bob)
+        return bob
 
     def cluster(self, threshold, cpus):
 
@@ -94,7 +98,7 @@ class ClusterMatch(object):
 
     def get_representatives(self):
 
-       return ((k, nx.center(v)[0].sequence) for k, v in self.clusters.items())
+        return {k: nx.center(v)[0] for k, v in self.clusters.items()}
 
     def parse_clusters(self, path):
 
@@ -113,15 +117,30 @@ class ClusterMatch(object):
         clusts = [[x.strip('>.') for x in re.findall(pt, y)] for y in data if y]
 
         for c in clusts:
-
             # genes from the incoming genome
-            incoming = [gene for gene in c if gene not in self.clusters]
+
+            try:
+                incoming = [gene for gene in c if gene not in self.clusters]
+
+                head, *tail = incoming
+            except ValueError:
+                head, tail = [], []
 
             # representative genes from the pangenome clusters
             reps = [get_clust_entry(g) for g in c if g in self.clusters]
 
             # pair incoming genes with matching pangenome clusters
-            for g in incoming:
-                matching_clusters[g] = reps
 
+            if head and head not in self.genes:
+                if head not in self.genome:
+                    print(head in self.clusters)
+                    print(head, tail)
+                matching_clusters[head] = reps
+
+                head_entry = Cluster_Entry(head, self.genome[head])
+
+                for g in tail:
+                    matching_clusters[g] = reps or [head_entry]
+
+                #print(g, matching_clusters[g])
         return matching_clusters

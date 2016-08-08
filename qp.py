@@ -40,14 +40,14 @@ def annotations(ffn, pangenome):
         for rec in SeqIO.parse(f, 'fasta'):
             if rec.id in pangenome.gene_lookup:
                 continue
-            yield GC.GeneNode(genome_basename(ffn),
-                              rec.id, rec.seq)
+            yield rec.id, GC.GeneNode(genome_basename(ffn),
+                                      rec.id, rec.seq)
 
 def cluster_incoming_genome(pangenome, annotations, threshold, cpus):
 
-        incoming_genome =  utilities.ClusterMatch(pangenome.clusters, annotations)
+    incoming_genome =  utilities.ClusterMatch(pangenome, annotations)
 
-        return incoming_genome.cluster(threshold, cpus)
+    return incoming_genome.cluster(threshold, cpus)
 
 def add_to_graph(gene, pangenome, matches, threshold, prog, cpus):
 
@@ -57,7 +57,8 @@ def add_to_graph(gene, pangenome, matches, threshold, prog, cpus):
 
             c2, *clusters  = clusters
 
-            pangenome.join_clusters(c1, c2, gene, prog, cpus)
+            if c1 != c2:
+                pangenome.join_clusters(c1, c2, gene, prog, cpus)
 
             recursive_cluster_join(c1, clusters)
 
@@ -94,35 +95,35 @@ def main():
 
     ref = time.time()
     for i in args.infile:
-        annots = list(annotations(i, pangenome))
-
+        annots = dict(annotations(i, pangenome))
         matching_clusters = cluster_incoming_genome(pangenome, annots,
                                                     args.threshold, args.cpus)
 
         for a in annots:
 
-
-            add_to_graph(a, pangenome, matching_clusters[a.gene], args.threshold,
+            gene = annots[a]
+            add_to_graph(gene, pangenome, matching_clusters[a], args.threshold,
                          args.aln_program, args.cpus)
-        now = time.time()
 
+        now = time.time()
+        print(len(pangenome.clusters))
         print(now-ref)
         ref = now
-        print(len(pangenome.clusters.keys()))
         genomes += 1
 
     G = nx.Graph()
     for c in pangenome.clusters.values():
 
-        if len(c) is 1:
+        if len(c.nodes()) is 1:
             G.add_nodes_from(c.nodes())
         else:
 
             G.add_edges_from(c.edges())
 
-    nx.draw(G, nx.spring_layout(G), with_labels=True)
-    plt.savefig('test_data.png')
-    plt.close()
+    print("Edges:", len(G.edges()), "Nodes:", len(G.nodes()), "Clusters:", len(pangenome.clusters))
+    #nx.draw(G, nx.spring_layout(G), with_labels=False, edge_color='k')
+    #plt.savefig('test_data.png')
+    #plt.close()
 
 if __name__ == '__main__':
     main()
